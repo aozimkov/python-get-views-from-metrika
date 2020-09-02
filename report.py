@@ -4,6 +4,8 @@ import configparser
 import json
 import pandas as pd
 import os
+from urllib2 import unquote
+from urlparse import urlparse
 
 SCRIPT_URL = os.path.dirname(os.path.abspath(__file__))
 REQUEST_PREFIX = "https://api-metrika.yandex.net/stat/v1/data"
@@ -46,25 +48,39 @@ def make_request():
         status_code = response.status_code
     return response_json
 
+# get url and return it without any params
+def clean_params(url):
+    url = urlparse(url)
+    return url.scheme + "://" + url.netloc + url.path
+
 def get_urls_pageviews_dict(data):
     data_object = data['data']
     url_pageviews_dict = {}
     for i in range(len(data_object)):
-        url_pageviews_dict[data_object[i]['dimensions'][0]['name']] = data_object[i]['metrics'][0]
+        url = clean_params(data_object[i]['dimensions'][0]['name']).encode('utf-8')
+        visitors = data_object[i]['metrics'][0]
+        if url in url_pageviews_dict:
+            url_pageviews_dict[url] += visitors
+        else:
+            url_pageviews_dict[url] = visitors
     return url_pageviews_dict
 
+# Method return json object with the information about visitors from ya metrika
 def get_all_views():
     response = make_request()
     ready_data_object = json.loads(response)
     return get_urls_pageviews_dict(ready_data_object)
 
+# get file by file name and return urls array
 def get_list_of_url(filename):
     columns = 'url'
     data = pd.read_csv('{}/{}'.format(SCRIPT_URL, filename), header=None, names=[columns])
     data.drop_duplicates(subset=columns, keep=False, inplace=True)
     urls = []
     for i in range(0, len(data)):
-        urls.append(data.iloc[i][columns])
+        url = data.iloc[i][columns]
+        url = unquote(url)
+        urls.append(url)
     return urls
 
 def main():
@@ -76,9 +92,8 @@ def main():
     urls = get_list_of_url(links_filename)
     print("{} urls loaded".format(len(urls)))
 
-    
     print("Processing urls ...")
-    results        = []
+    results = []
     for url in urls:
         results.append(int(all_views_dict.get(url, 0)))
     ready_dict = {'urls': urls, 'results': results}
