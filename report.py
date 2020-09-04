@@ -46,6 +46,12 @@ def make_request():
         response = requests.get(request_metrics, headers = headers)
         response_json = response.content
         status_code = response.status_code
+        if status_code == 429:
+            error_response = json.loads(response_json)
+            print("")
+            print("Error: {}".format(error_response['errors'][0]['error_type']))
+            print(error_response['errors'][0]['message'])
+            exit()
     return response_json
 
 # get url and return it without any params
